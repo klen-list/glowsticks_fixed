@@ -44,7 +44,6 @@ end
 CreateClientConVar('gmod_glowsticks_red', '255', true, true)
 CreateClientConVar('gmod_glowsticks_green', '255', true, true)
 CreateClientConVar('gmod_glowsticks_blue', '255', true, true)
-CreateClientConVar('gmod_glowsticks_alpha', '255', true, true)
 
 local function openMenu(basePanel)
 	do
@@ -78,7 +77,6 @@ local function openMenu(basePanel)
 		Red = 'gmod_glowsticks_red',
 		Blue = 'gmod_glowsticks_blue',
 		Green = 'gmod_glowsticks_green',
-		Alpha = 'gmod_glowsticks_alpha',
 		ShowHSV = 1,
 		ShowRGB = 1,
 		Multiplier = 255,
