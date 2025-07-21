@@ -1,152 +1,137 @@
-if ( CLIENT ) then
-	language.Add ("ent_glowstick_fly", "Glow Stick")
-	language.Add ("glowsticks_ammo", "Glow Sticks")
-	language.Add ("cleanup_glowsticks", "Glow Sticks")
-	language.Add ("cleaned_glowsticks", "Glow Sticks are gone!")
-  	SWEP.DrawAmmo			= false
-	SWEP.DrawCrosshair		= true
-	SWEP.ViewModelFOV		= 35
-	SWEP.ViewModelFlip		= false
-	SWEP.CSMuzzleFlashes	= false
-	SWEP.HoldType			= "slam"	
-	SWEP.PrintName			= "Glow Stick Custom"
-	SWEP.Author				= "Patrick Hunt"
-end
+AddCSLuaFile()
+AddCSLuaFile('cl_init.lua')
 
-SWEP.Author					= "Patrick Hunt"
-SWEP.Contact				= "patrick07hunt@gmail.com"
-SWEP.Purpose				= ""
-SWEP.Instructions			= "Use primary attack to drop a glow stick and secondary to throw."
-SWEP.HoldType				= "slam"
-SWEP.Category				= "Glow Sticks"
+SWEP.Spawnable = true
 
-SWEP.Spawnable				= true
-SWEP.AdminSpawnable			= true
+SWEP.ViewModel = 'models/weapons/c_glowstick.mdl'
+SWEP.WorldModel = 'models/glowstick/stick.mdl'
 
-SWEP.ViewModel				= "models/weapons/c_glowstick.mdl"
-SWEP.WorldModel				= "models/glowstick/stick.mdl"
-SWEP.UseHands				= false
+SWEP.AutoSwitchTo = false
+SWEP.AutoSwitchFrom	= false
+SWEP.Slot = 1
+SWEP.SlotPos = 1
 
-SWEP.Primary.ClipSize		= -1
-SWEP.Primary.DefaultClip	= 5
-SWEP.Primary.Automatic		= false
-SWEP.Primary.Ammo			= "glowsticks"
-SWEP.Primary.Delay			= 2
+SWEP.Primary.ClipSize = -1
+SWEP.Primary.DefaultClip = 5
+SWEP.Primary.Automatic = false
+SWEP.Primary.Ammo = 'glowsticks'
 
-SWEP.Secondary.ClipSize		= -1
-SWEP.Secondary.DefaultClip	= -1
-SWEP.Secondary.Automatic	= false
-SWEP.Secondary.Ammo			= "none"
-SWEP.Secondary.Delay		= 2
-
-function SWEP:Think()
-end
+SWEP.Secondary.ClipSize = -1
+SWEP.Secondary.DefaultClip = -1
+SWEP.Secondary.Automatic = false
+SWEP.Secondary.Ammo = 'none'
 
 function SWEP:Initialize()
-	util.PrecacheSound("glowstick/glowstick_snap.wav");
-	util.PrecacheSound("glowstick/glowstick_shake.wav");
-	self:SetWeaponHoldType( self.HoldType )
+	self:SetWeaponHoldType('slam')
+end
+
+do
+	local defaultColor = Color(0, 255, 0)
+	local customColor = Color(0, 255, 0)
+
+	function SWEP:GetStickColor()
+		local ply = self:GetOwner()
+
+		local color = customColor
+
+		if ply:IsBot() then
+			color = defaultColor
+		else
+			customColor.r = ply:GetInfoNum('gmod_glowsticks_red', 255)
+			customColor.g = ply:GetInfoNum('gmod_glowsticks_green', 255)
+			customColor.b = ply:GetInfoNum('gmod_glowsticks_blue', 255)
+			color = customColor
+		end
+
+		return color
+	end
 end
 
 function SWEP:Think()
-	if self.Owner:IsBot() then self:SetColor(Color(0,255,0,255)) else -- Bots create a shipload of errors since they don't have any client vars on them so let's set them all green (or i'm just stupid)
-	self:SetColor(Color(self.Owner:GetInfo("gmod_glowsticks_red"), self.Owner:GetInfo("gmod_glowsticks_green"), self.Owner:GetInfo("gmod_glowsticks_blue"), 255)) -- Paints world model in real time
+	self:SetColor(self:GetStickColor())
+
+	if CLIENT then
+		self:DrawLocalLight()
 	end
 end
 
 function SWEP:Deploy()
-	self.Weapon:SendWeaponAnim(ACT_VM_DRAW);
-	self.Weapon:SetNextPrimaryFire(CurTime() + 1.75)
-	if SERVER then
-	local glow = ents.Create("ent_glowstick_glow")
-		glow:SetOwner(self.Owner) 
-		glow:SetParent(self.Owner)
-		glow:SetPos(self.Owner:GetPos())
-		if self.Owner:IsBot() then self:SetColor(Color(0,255,0,255)) else
-		glow:SetColor(Color(self.Owner:GetInfo("gmod_glowsticks_red"), self.Owner:GetInfo("gmod_glowsticks_green"), self.Owner:GetInfo("gmod_glowsticks_blue"), 255))
-		end
-		//glow:SetMaterial(self.Owner:GetMaterial())
-		glow:Spawn()
-	end
-   return true
+	self:SendWeaponAnim(ACT_VM_DRAW)
+	self:SetNextPrimaryFire(CurTime() + 1.75)
+
+	return true
 end
 
-function SWEP:Reload()
-	return true
+function SWEP:DoStickThrow(isPrimary)
+	if self:Ammo1() <= 0 then return end
+
+	self:SendWeaponAnim(isPrimary and ACT_VM_SECONDARYATTACK or ACT_VM_THROW)
+
+	self:TakePrimaryAmmo(1)
+
+	timer.Simple(0.5, function()
+		if not IsValid(self) then return end
+
+		local ply = self:GetOwner()
+		if not IsValid(ply) then return end
+
+		ply:SetAnimation(PLAYER_ATTACK1)
+
+		if SERVER then
+			local ent = ents.Create('ent_glowstick_new')
+			if not IsValid(ent) then return end
+
+			ent:SetPos(ply:EyePos() + (ply:GetAimVector() * 16))
+			ent:SetAngles(ply:EyeAngles())
+			ent:Spawn()
+			ent:Activate()
+			ent:SetColor(self:GetStickColor())
+
+			ply:AddCleanup('glowsticks', ent)
+
+			local phys = ent:GetPhysicsObject()
+			if not IsValid(phys) then return end
+
+			phys:SetVelocity(ply:GetAimVector() * (isPrimary and 125 or 600))
+			phys:AddAngleVelocity(Vector(
+				math.random(-1000, 1000),
+				math.random(-1000, 1000),
+				math.random(-1000, 1000))
+			)
+		end
+
+		self:EmitSound('Glowstick.Snap')
+	end)
+
+	timer.Simple(1, function()
+		if not IsValid(self) then return end
+		self:SendWeaponAnim(ACT_VM_DRAW)
+	end)
 end
 
 function SWEP:PrimaryAttack()
-	if ( self.Weapon:Ammo1() <= 0 ) then return end
-	self.Weapon:SendWeaponAnim( ACT_VM_SECONDARYATTACK )
-	self.Weapon:SetNextPrimaryFire(CurTime() + self.Primary.Delay)
-	self:TakePrimaryAmmo(1)
-		timer.Simple(0.5, function()
-		self.Owner:SetAnimation( PLAYER_ATTACK1 )
-			if SERVER then
-					local ent = ents.Create("ent_glowstick_fly")
-					ent:SetPos(self.Owner:EyePos() + (self.Owner:GetAimVector() * 16))
-					ent:SetAngles(self.Owner:EyeAngles())
-					if self.Owner:IsBot() then ent:SetColor(Color(0,255,0,255)) else
-					ent:SetColor( Color( self.Owner:GetInfo("gmod_glowsticks_red"), self.Owner:GetInfo("gmod_glowsticks_green"), self.Owner:GetInfo("gmod_glowsticks_blue"), 255) )
-					end
-					ent:Spawn()
-					ent:Activate()
-					self.Owner:AddCleanup( "glowsticks", ent)
-				local phys = ent:GetPhysicsObject()
-				phys:SetVelocity(self.Owner:GetAimVector() * 125)
-				phys:AddAngleVelocity(Vector(math.random(-1000,1000),math.random(-1000,1000),math.random(-1000,1000)))
-			end
-		end)
-		timer.Simple(1, function()
-		self.Weapon:SendWeaponAnim(ACT_VM_DRAW)
-		end)
+	self:DoStickThrow(true)
+	self:SetNextPrimaryFire(CurTime() + 2)
 end
 
 function SWEP:SecondaryAttack()
-	if ( self.Weapon:Ammo1() <= 0 ) then return end
-	self.Weapon:SendWeaponAnim( ACT_VM_THROW )
-	self.Weapon:SetNextSecondaryFire(CurTime() + self.Secondary.Delay)
-	self:TakePrimaryAmmo(1)
-		timer.Simple(0.5, function()
-		self.Owner:SetAnimation( PLAYER_ATTACK1 )
-			if SERVER then
-					local ent = ents.Create("ent_glowstick_fly")
-					ent:SetPos(self.Owner:EyePos() + (self.Owner:GetAimVector() * 16))
-					ent:SetAngles(self.Owner:EyeAngles())
-					if self.Owner:IsBot() then ent:SetColor(Color(0,255,0,255)) else
-					ent:SetColor( Color( self.Owner:GetInfo("gmod_glowsticks_red"), self.Owner:GetInfo("gmod_glowsticks_green"), self.Owner:GetInfo("gmod_glowsticks_blue"), 255) )
-					end
-					ent:Spawn()
-					ent:Activate()
-					self.Owner:AddCleanup( "glowsticks", ent)
-				local phys = ent:GetPhysicsObject()
-				phys:SetVelocity(self.Owner:GetAimVector() * 600)
-				phys:AddAngleVelocity(Vector(math.random(-1000,1000),math.random(-1000,1000),math.random(-1000,1000)))
-			end
-		end)
-		timer.Simple(1, function()
-		self.Weapon:SendWeaponAnim(ACT_VM_DRAW)
-		end)
+	self:DoStickThrow(false)
+	self:SetNextSecondaryFire(CurTime() + 2)
 end
 
-function SWEP:PreDrawViewModel( vm )
-	Material("models/glowstick/glow"):SetVector("$color2", Vector(self.Owner:GetInfo("gmod_glowsticks_red") / 255, self.Owner:GetInfo("gmod_glowsticks_green") / 255, self.Owner:GetInfo("gmod_glowsticks_blue") / 255) )
+function SWEP:PreDrawViewModel()
+	local col = self:GetColor()
+
+	Material('models/glowstick/glow'):SetVector('$color2', Vector(
+		col.r / 255,
+		col.g / 255,
+		col.b / 255
+	))
 end
 
-function SWEP:PostDrawViewModel( vm )
-	Material("models/glowstick/glow"):SetVector("$color2", Vector(1, 1, 1) )
-end
-
-function SWEP:Holster()
-	local worldmodel = ents.FindInSphere(self.Owner:GetPos(),0.6)
-	for k, v in pairs(worldmodel) do 
-		if v:GetClass() == "ent_glowstick_glow" and v:GetOwner() == self.Owner then
-			v:Remove()
-		end
+do
+	local vecOne = Vector(1, 1, 1)
+	function SWEP:PostDrawViewModel()
+		Material('models/glowstick/glow'):SetVector('$color2', vecOne)
 	end
-return true
-end
-
-function SWEP:OnRemove()
-	return true
 end

@@ -1,9 +1,14 @@
 {
-  "title": "Glow Sticks",
-  "type": "weapon",
-  "tags": [
-    "fun",
-    "realism"
-  ],
-  "ignore": []
+	"title": "Glow Sticks [fixed]",
+	"type": "weapon",
+	"tags": [
+		"fun",
+		"realism"
+	],
+	"ignore" :
+	[
+		".git/*",
+		"LICENSE",
+		"README.md"
+	]
 }
